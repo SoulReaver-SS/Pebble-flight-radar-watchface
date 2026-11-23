@@ -1,4 +1,4 @@
-# Flight Radar
+# Flight Radar watchface for Pebble smartwatch
 
 A Pebble Time 2 watchface that shows live ADS-B traffic around you on a dark map styled after the Wingbits live map.
 
