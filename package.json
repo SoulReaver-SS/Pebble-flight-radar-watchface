@@ -1,0 +1,98 @@
+{
+  "name": "overhead",
+  "author": "SoulReaver-SS",
+  "version": "0.4.1",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "dependencies": {
+    "pebble-clay": "^1.0.4"
+  },
+  "pebble": {
+    "displayName": "Aircraft Map",
+    "uuid": "a8c039ca-8cc9-4856-91fd-371ebaa9719c",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+      "emery"
+    ],
+    "watchapp": {
+      "watchface": true
+    },
+    "messageKeys": [
+      "CMD",
+      "STATUS",
+      "SRC",
+      "USER_X",
+      "USER_Y",
+      "MPP10",
+      "PLANES",
+      "PLANE_COUNT",
+      "MAP_ID",
+      "MAP_TOTAL",
+      "MAP_OFFSET",
+      "MAP_CHUNK",
+      "ROAD_STYLE",
+      "SHOW_RING",
+      "INTERVAL_MIN",
+      "RADIUS_NM",
+      "CFG_WB_KEY",
+      "CFG_PM_KEY",
+      "CFG_INTERVAL",
+      "CFG_RADIUS",
+      "CFG_ROADS",
+      "CFG_RING",
+      "CFG_GROUND",
+      "LOC_LABEL",
+      "TOUCH_ZOOM",
+      "CFG_LOC_MODE",
+      "CFG_PRESET",
+      "CFG_ZIP",
+      "CFG_COORDS",
+      "CFG_TOUCH_ZOOM",
+      "UNIT"
+    ],
+    "resources": {
+      "media": [
+        {
+          "type": "font",
+          "name": "FONT_TIME_30",
+          "file": "fonts/IBMPlexMono-SemiBold.ttf",
+          "characterRegex": "[0-9:_]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_SMALL_14",
+          "file": "fonts/IBMPlexMono-Medium.ttf",
+          "characterRegex": "[ -~]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_TINY_11",
+          "file": "fonts/IBMPlexMono-Medium.ttf",
+          "characterRegex": "[ -~]"
+        }
+      ]
+    },
+    "capabilities": [
+      "location",
+      "configurable"
+    ],
+    "usesPermissions": [
+      "Location",
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.adsb.lol",
+            "api.protomaps.com",
+            "customer-api.wingbits.com",
+            "api.zippopotam.us",
+            "tiles.openfreemap.org"
+          ]
+        }
+      }
+    ]
+  }
+}
