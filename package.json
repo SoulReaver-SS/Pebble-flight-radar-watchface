@@ -1,21 +1,19 @@
 {
   "name": "flight-radar",
   "author": "SoulReaver-SS",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "keywords": [
     "pebble-app"
   ],
   "private": true,
-  "dependencies": {
-    "pebble-clay": "^1.0.4"
-  },
   "pebble": {
     "displayName": "Flight Radar",
     "uuid": "a8c039ca-8cc9-4856-91fd-371ebaa9719c",
     "sdkVersion": "3",
     "enableMultiJS": true,
     "targetPlatforms": [
-      "emery"
+      "emery",
+      "gabbro"
     ],
     "watchapp": {
       "watchface": true
@@ -51,7 +49,33 @@
       "CFG_ZIP",
       "CFG_COORDS",
       "CFG_TOUCH_ZOOM",
-      "UNIT"
+      "UNIT",
+      "LIVE_SECS",
+      "NIGHT_FROM",
+      "NIGHT_TO",
+      "LABELS",
+      "BATTERY",
+      "TRAIL_MODE",
+      "TRAILS",
+      "ROUTE",
+      "NEAR_CS",
+      "NEAR_TYPE",
+      "ALERT",
+      "ALERT_KIND",
+      "CFG_LIVE",
+      "CFG_NIGHT",
+      "CFG_NIGHT_FROM",
+      "CFG_NIGHT_TO",
+      "CFG_TRAILS",
+      "CFG_LABELS",
+      "CFG_BATTERY",
+      "CFG_RECEIVER",
+      "CFG_ALERT_SQUAWK",
+      "CFG_ALERT_LOW",
+      "CFG_ALERT_LOW_FT",
+      "CFG_ALERT_MIL",
+      "CFG_ALERT_HELI",
+      "CFG_WATCHLIST"
     ],
     "resources": {
       "media": [
@@ -89,10 +113,18 @@
             "api.protomaps.com",
             "customer-api.wingbits.com",
             "api.zippopotam.us",
-            "tiles.openfreemap.org"
+            "tiles.openfreemap.org",
+            "opendata.adsb.fi",
+            "api.adsbdb.com"
           ]
         }
+      },
+      {
+        "name": "LocalNetwork"
       }
     ]
+  },
+  "dependencies": {
+    "@rebble/clay": "^1.1.0"
   }
 }

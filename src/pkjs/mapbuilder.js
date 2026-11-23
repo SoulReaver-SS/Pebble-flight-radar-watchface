@@ -8,8 +8,6 @@ var net = require('./net');
 var OFM_TILEJSON = 'https://tiles.openfreemap.org/planet';
 var PROTOMAPS_URL = 'https://api.protomaps.com/tiles/v4/{z}/{x}/{y}.mvt?key=';
 var MAX_BYTES = 16000;     // keep the map small enough for the watch heap
-var SCREEN_HALF_W = 100;   // px from center to screen edge
-var SCREEN_HALF_H = 120;
 
 // Extra map around the screen so small moves don't need a rebuild: ~60 px, between 0.5 and 2.5 km.
 function marginFor(mpp) { return Math.max(500, Math.min(2500, 60 * mpp)); }
@@ -134,7 +132,8 @@ function buildMap(opts, cb) {
 function buildFrom(opts, template, maxzoom, layerNames, cb) {
   var proj = geo.makeProjection(opts.lat, opts.lon);
   var margin = marginFor(opts.mpp);
-  var hw = SCREEN_HALF_W * opts.mpp + margin, hh = SCREEN_HALF_H * opts.mpp + margin;
+  // opts.halfW/halfH: px from the map center to the screen edges (differs between Time 2 and Round 2).
+  var hw = (opts.halfW || 100) * opts.mpp + margin, hh = (opts.halfH || 120) * opts.mpp + margin;
   var box = { x0: -hw, x1: hw, y0: -hh, y1: hh };
   var sw = proj.toLatLon(-hw, -hh), ne = proj.toLatLon(hw, hh);
   var z = Math.min(maxzoom, zoomFor(opts.mpp, opts.lat));

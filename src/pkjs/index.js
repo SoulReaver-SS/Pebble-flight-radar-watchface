@@ -1,11 +1,14 @@
 // Flight Radar: phone side. Gets GPS, builds the map, fetches aircraft and ships it all to the watch.
-var Clay = require('pebble-clay');
+var Clay = require('@rebble/clay');
 var clayConfig = require('./config');
 var clayFn = require('./config-fn');
 var places = require('./places');
 var geo = require('./geo');
 var planes = require('./planes');
 var mapbuilder = require('./mapbuilder');
+var enrich = require('./enrich');
+var alerts = require('./alerts');
+var trails = require('./trails');
 var keys = require('message_keys');
 
 var clay = new Clay(clayConfig, clayFn, { autoHandleEvents: false });
@@ -13,7 +16,14 @@ var clay = new Clay(clayConfig, clayFn, { autoHandleEvents: false });
 var MAX_PLANES = 60;
 var CHUNK = 1500;
 var NM = 1852;
-var MAP_RADIUS_PX = 77; // px from map center to the top/bottom bands on the Time 2
+
+// Screen geometry per watch: px from the map center to the bands (range ring) and to the edges.
+function screen() {
+  var platform = '';
+  try { platform = Pebble.getActiveWatchInfo().platform; } catch (e) { }
+  if (platform === 'gabbro') { return { radiusPx: 68, halfW: 130, halfH: 130 }; }  // Round 2, 260x260
+  return { radiusPx: 77, halfW: 100, halfH: 120 };                                 // Time 2, 200x228
+}
 
 var CMD_REFRESH = 1;
 var CMD_HELLO = 2;
@@ -31,7 +41,21 @@ function settings() {
   return {
     wbKey: String(pick('CFG_WB_KEY', '')).trim(),
     pmKey: String(pick('CFG_PM_KEY', '')).trim(),  // blank = OpenFreeMap
-    interval: parseInt(pick('CFG_INTERVAL', '2'), 10) || 2,
+    interval: (function (v) { return isNaN(v) ? 2 : v; })(parseInt(pick('CFG_INTERVAL', '2'), 10)),  // 0 = off
+    live: parseInt(pick('CFG_LIVE', '10'), 10) || 10,
+    night: on(pick('CFG_NIGHT', false)),
+    nightFrom: parseInt(pick('CFG_NIGHT_FROM', '23'), 10),
+    nightTo: parseInt(pick('CFG_NIGHT_TO', '7'), 10),
+    trails: String(pick('CFG_TRAILS', 'sel')),
+    labels: on(pick('CFG_LABELS', false)),
+    battery: on(pick('CFG_BATTERY', true)),
+    receiver: String(pick('CFG_RECEIVER', '')).trim(),
+    alertSquawk: on(pick('CFG_ALERT_SQUAWK', false)),
+    alertLow: on(pick('CFG_ALERT_LOW', false)),
+    alertLowFt: parseInt(pick('CFG_ALERT_LOW_FT', '3000'), 10) || 3000,
+    alertMil: on(pick('CFG_ALERT_MIL', false)),
+    alertHeli: on(pick('CFG_ALERT_HELI', false)),
+    watchlist: String(pick('CFG_WATCHLIST', '')).trim(),
     radiusNm: parseInt(pick('CFG_RADIUS', '10'), 10) || 10,
     roads: parseInt(pick('CFG_ROADS', '1'), 10),
     ring: pick('CFG_RING', true) !== false && pick('CFG_RING', true) !== 0,
@@ -44,6 +68,8 @@ function settings() {
   };
 }
 
+function on(v) { return v === true || v === 1 || v === '1' || v === 'true'; }
+
 // Watch zoom gesture: 0 off, 1 swipe up = in, 2 down = in, 3 right = in, 4 left = in.
 function zoomMode(v) {
   if (v === true) { return 1; }
@@ -51,7 +77,7 @@ function zoomMode(v) {
   return { off: 0, up: 1, down: 2, right: 3, left: 4 }[v] || 1;
 }
 
-function mppFor(cfg) { return cfg.radiusNm * NM / MAP_RADIUS_PX; }
+function mppFor(cfg) { return cfg.radiusNm * NM / screen().radiusPx; }
 
 // ---------- AppMessage queue ----------
 var queue = [], sending = false;
@@ -87,6 +113,12 @@ function sendConfig() {
   d[keys.INTERVAL_MIN] = cfg.interval;
   d[keys.RADIUS_NM] = cfg.radiusNm;
   d[keys.TOUCH_ZOOM] = cfg.touchZoom;
+  d[keys.LIVE_SECS] = cfg.live;
+  d[keys.NIGHT_FROM] = cfg.night ? cfg.nightFrom : -1;
+  d[keys.NIGHT_TO] = cfg.night ? cfg.nightTo : -1;
+  d[keys.LABELS] = cfg.labels ? 1 : 0;
+  d[keys.BATTERY] = cfg.battery ? 1 : 0;
+  d[keys.TRAIL_MODE] = { off: 0, sel: 1, all: 2 }[cfg.trails] || 0;
   send(d);
 }
 
@@ -163,7 +195,8 @@ function ensureMap(lat, lon, cfg, cb) {
   var src = cfg.pmKey ? 'pm' : 'ofm';
   var cached = cachedMap(lat, lon, mpp, src);
   if (cached) { sendMap(cached, cb); return; }
-  mapbuilder.buildMap({ lat: lat, lon: lon, mpp: mpp, key: cfg.pmKey }, function (err, map) {
+  var sc = screen();
+  mapbuilder.buildMap({ lat: lat, lon: lon, mpp: mpp, key: cfg.pmKey, halfW: sc.halfW, halfH: sc.halfH }, function (err, map) {
     if (err) {
       console.log('map build failed: ' + err.message);
       // Still give the watch a scale so planes render; retry the map next refresh.
@@ -221,13 +254,17 @@ function refresh(forceMap) {
       var proj = geo.makeProjection(watchMap.lat, watchMap.lon);
       var user = proj.toLocal(fix.lat, fix.lon);
       // Fetch a bit past the visible corners.
+      var fetchNm = cfg.radiusNm * 1.75;
       planes.fetchPlanes({
-        wbKey: cfg.wbKey, lat: fix.lat, lon: fix.lon,
-        radiusNm: cfg.radiusNm * 1.75, hideGround: cfg.hideGround
+        wbKey: cfg.wbKey, receiver: cfg.receiver, lat: fix.lat, lon: fix.lon,
+        radiusNm: fetchNm, hideGround: cfg.hideGround
       }, function (perr, list, src, warn) {
         if (perr) { sendStatus('NO DATA'); done(); return; }
         var unit = watchMap.unit || geo.UNIT_M;
-        var packed = planes.packPlanes(list, proj, user, MAX_PLANES, unit, geo.clamp16);
+        var all = planes.arrange(list, proj, user, 100000, fetchNm * NM);
+        var arranged = all.slice(0, MAX_PLANES);
+        trails.record(all.map(function (e) { return e.p; }));
+        var packed = planes.packPlanes(arranged, unit, geo.clamp16);
         var d = {};
         d[keys.MAP_ID] = watchMap.id;
         d[keys.USER_X] = Math.round(user[0] / unit);
@@ -238,7 +275,29 @@ function refresh(forceMap) {
         d[keys.SRC] = src;
         d[keys.STATUS] = warn || fix.warn || (fix.stale ? 'OLD GPS' : '') || (watchMap.empty ? 'NO MAP' : '');
         d[keys.LOC_LABEL] = fix.label || '';
-        send(d, done);
+        send(d);
+
+        // Trails for the nearest plane (or all), then any alert, then route/type for the nearest.
+        var tb = trails.pack(arranged, cfg.trails, proj, unit, geo.clamp16, 1600);
+        var tm = {};
+        tm[keys.TRAILS] = tb ? toArray(tb) : [0];
+        send(tm);
+        var alert = alerts.check(all, cfg);
+        if (alert) {
+          var am = {};
+          am[keys.ALERT] = alert.text;
+          am[keys.ALERT_KIND] = alert.kind;
+          send(am);
+        }
+        if (!arranged.length) { done(); return; }
+        var near = arranged[0].p;
+        enrich.lookup(near, function (info) {
+          var em = {};
+          em[keys.NEAR_CS] = (near.cs || near.hex).toUpperCase().substr(0, 8);
+          em[keys.NEAR_TYPE] = info.type || '';
+          em[keys.ROUTE] = info.route || '';
+          send(em, done);
+        });
       });
     });
   });
