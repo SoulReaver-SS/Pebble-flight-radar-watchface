@@ -2,6 +2,8 @@
 
 A Pebble Time 2 watchface that shows live ADS-B traffic around you on a dark map styled after the Wingbits live map.
 
+https://apps.repebble.com/057454964bc84d3f881d3edd
+
 - Time band on top, nearest aircraft at the bottom (callsign, distance, bearing arrow, altitude, speed, category)
 - Map centered on your phone's GPS: water, highways, major roads and runways from OpenStreetMap vector tiles (OpenFreeMap by default)
 - Aircraft colored by altitude with the Wingbits "thermal" ramp, snapped to Pebble's 64 colors
