@@ -59,3 +59,22 @@ pebble install --emulator gabbro
 - IBM Plex Mono, SIL Open Font License (`resources/fonts/OFL-IBMPlexMono.txt`)
 - Quiet Time icon from TimeStyle by Freakified, MIT License (`THIRD_PARTY.md`)
 - Aircraft silhouettes are original drawings
+
+## Support
+
+Flight Radar is free and open source. If you want to support it:
+
+Monero (XMR)
+```
+8C6RthZR9m7UJjEBSmbBPEDMyigok2Pte8hpBGtYZtCE2zrY1BRKgDy4DoC5Y7mrCQ2RPRei3pjRuBMeHGkBTzTLPW7AJGM
+```
+
+Bitcoin (BTC)
+```
+bc1pqac2n5rylc58gdx9envwjw4dy8xv49gwvwtc62ejkzh5w5cfcj2qv7trgz
+```
+
+Solana (SOL)
+```
+3Yqyu1q5rcZHt2R5sN6HjaSj9T7Bpjp1vougx992fbjx
+```
