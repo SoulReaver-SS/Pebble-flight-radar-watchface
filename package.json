@@ -1,7 +1,7 @@
 {
-  "name": "overhead",
+  "name": "flight-radar",
   "author": "SoulReaver-SS",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "keywords": [
     "pebble-app"
   ],
@@ -10,7 +10,7 @@
     "pebble-clay": "^1.0.4"
   },
   "pebble": {
-    "displayName": "Aircraft Map",
+    "displayName": "Flight Radar",
     "uuid": "a8c039ca-8cc9-4856-91fd-371ebaa9719c",
     "sdkVersion": "3",
     "enableMultiJS": true,

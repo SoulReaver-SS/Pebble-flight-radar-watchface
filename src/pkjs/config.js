@@ -4,7 +4,7 @@ var places = require('./places');
 var RANGES = [1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 60, 80, 100];
 
 module.exports = [
-  { type: 'heading', defaultValue: 'Aircraft Map' },
+  { type: 'heading', defaultValue: 'Flight Radar' },
   { type: 'text', defaultValue: 'Live ADS-B traffic around you on a dark map.' },
   {
     type: 'section',

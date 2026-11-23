@@ -1,4 +1,4 @@
-// Aircraft Map: phone side. Gets GPS, builds the map, fetches aircraft and ships it all to the watch.
+// Flight Radar: phone side. Gets GPS, builds the map, fetches aircraft and ships it all to the watch.
 var Clay = require('pebble-clay');
 var clayConfig = require('./config');
 var clayFn = require('./config-fn');

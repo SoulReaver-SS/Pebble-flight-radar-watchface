@@ -1,4 +1,4 @@
-// Aircraft Map: live ADS-B traffic around you on a Wingbits-style dark map.
+// Flight Radar: live ADS-B traffic around you on a Wingbits-style dark map.
 // Watch side: receives map geometry + aircraft from the phone and draws them.
 #include <pebble.h>
 
