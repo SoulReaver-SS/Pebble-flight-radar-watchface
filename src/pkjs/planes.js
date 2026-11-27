@@ -2,6 +2,7 @@
 // { hex, cs, reg, type, lat, lon, alt (ft or null), ground, hdg, gs, cat, squawk, emergency, mil, age }
 // Order: your own receiver (home network) -> Wingbits (with key) -> adsb.lol -> adsb.fi.
 var net = require('./net');
+var wbpace = require('./wbpace');
 
 var WINGBITS_URL = 'https://customer-api.wingbits.com/v1/flights';
 var ADSBLOL_URL = 'https://api.adsb.lol/v2/lat/';
@@ -66,7 +67,8 @@ function fetchReadsbArea(base, name, lat, lon, radiusNm, hideGround, cb) {
 function fetchWingbits(key, lat, lon, radiusNm, hideGround, cb) {
   var r = Math.min(150, Math.ceil(radiusNm));
   var url = WINGBITS_URL + '?by=radius&la=' + lat.toFixed(4) + '&lo=' + lon.toFixed(4) + '&rad=' + r + '&unit=nm';
-  net.get(url, { json: true, timeout: 15000, headers: { 'x-api-key': key } }, function (err, status, body) {
+  net.get(url, { json: true, timeout: 15000, headers: { 'x-api-key': key } }, function (err, status, body, header) {
+    wbpace.record(key, status, header, Date.now());
     if (err || status !== 200 || !Array.isArray(body)) {
       cb(err || new Error('Wingbits HTTP ' + status), null, null, status);
       return;
@@ -98,11 +100,22 @@ function fetchPublic(opts, cb) {
     });
   }
   if (!opts.wbKey) { lol(''); return; }
-  fetchWingbits(opts.wbKey, opts.lat, opts.lon, opts.radiusNm, opts.hideGround, function (err, list, src, status) {
-    if (!err) { cb(null, list, src, ''); return; }
-    console.log('Wingbits failed (' + (status || err.message) + '), falling back');
-    lol((status === 401 || status === 403) ? 'WB KEY?' : (status === 429 ? 'WB QUOTA' : 'WB DOWN'));
-  });
+  function wingbits() {
+    var why = wbpace.gate(opts.wbKey, Date.now());
+    if (why) {
+      // Over the per-minute limit or ahead of an even monthly pace: use adsb.lol quietly this time.
+      console.log('Wingbits skipped (' + why + ')');
+      lol(why === 'quota' ? 'WB QUOTA' : '');
+      return;
+    }
+    fetchWingbits(opts.wbKey, opts.lat, opts.lon, opts.radiusNm, opts.hideGround, function (err, list, src, status) {
+      if (!err) { cb(null, list, src, ''); return; }
+      console.log('Wingbits failed (' + (status || err.message) + '), falling back');
+      // 402 = monthly quota used up, 429 = per-minute limit (not a problem, just wait a moment).
+      lol((status === 401 || status === 403) ? 'WB KEY?' : (status === 402 ? 'WB QUOTA' : (status === 429 ? '' : 'WB DOWN')));
+    });
+  }
+  if (wbpace.needsUsage(opts.wbKey, Date.now())) { wbpace.usage(opts.wbKey, wingbits); } else { wingbits(); }
 }
 
 function fetchPlanes(opts, cb) {

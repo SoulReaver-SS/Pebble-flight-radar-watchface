@@ -1,9 +1,10 @@
 # Third-party material
 
-## TimeStyle Quiet Time icon
+## TimeStyle icons
 
 The Quiet Time (muted speaker) icon in `src/c/flight_radar.c` is taken from
-`resources/images/status-dnd.png` in TimeStyle by Freakified:
+`resources/images/status-dnd.png`, and the heart and shoe icons are scaled down from
+`resources/data/HEALTH_HEART.pdc` and `resources/data/HEALTH_STEPS.pdc`, in TimeStyle by Freakified:
 https://github.com/freakified/TimeStylePebble
 
 It is used under the MIT License:

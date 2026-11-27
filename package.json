@@ -1,7 +1,7 @@
 {
   "name": "flight-radar",
   "author": "SoulReaver-SS",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "keywords": [
     "pebble-app"
   ],
@@ -75,7 +75,13 @@
       "CFG_ALERT_LOW_FT",
       "CFG_ALERT_MIL",
       "CFG_ALERT_HELI",
-      "CFG_WATCHLIST"
+      "CFG_WATCHLIST",
+      "SHOW_HR",
+      "SHOW_STEPS",
+      "CFG_HR",
+      "CFG_STEPS",
+      "RANGE_LABEL",
+      "CFG_RANGE_LABEL"
     ],
     "resources": {
       "media": [
@@ -84,6 +90,12 @@
           "name": "FONT_TIME_30",
           "file": "fonts/IBMPlexMono-SemiBold.ttf",
           "characterRegex": "[0-9:_]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_TIME_22",
+          "file": "fonts/IBMPlexMono-SemiBold.ttf",
+          "characterRegex": "[0-9:]"
         },
         {
           "type": "font",
@@ -101,7 +113,8 @@
     },
     "capabilities": [
       "location",
-      "configurable"
+      "configurable",
+      "health"
     ],
     "usesPermissions": [
       "Location",

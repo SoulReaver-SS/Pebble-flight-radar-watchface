@@ -9,6 +9,7 @@ var mapbuilder = require('./mapbuilder');
 var enrich = require('./enrich');
 var alerts = require('./alerts');
 var trails = require('./trails');
+var wbpace = require('./wbpace');
 var keys = require('message_keys');
 
 var clay = new Clay(clayConfig, clayFn, { autoHandleEvents: false });
@@ -41,14 +42,17 @@ function settings() {
   return {
     wbKey: String(pick('CFG_WB_KEY', '')).trim(),
     pmKey: String(pick('CFG_PM_KEY', '')).trim(),  // blank = OpenFreeMap
-    interval: (function (v) { return isNaN(v) ? 2 : v; })(parseInt(pick('CFG_INTERVAL', '2'), 10)),  // 0 = off
-    live: parseInt(pick('CFG_LIVE', '10'), 10) || 10,
+    interval: (function (v) { return isNaN(v) ? 60 : v; })(parseInt(pick('CFG_INTERVAL', '60'), 10)),  // 0 = off
+    live: (function (v) { return isNaN(v) ? 10 : v; })(parseInt(pick('CFG_LIVE', '10'), 10)),  // 0 = off
     night: on(pick('CFG_NIGHT', false)),
     nightFrom: parseInt(pick('CFG_NIGHT_FROM', '23'), 10),
     nightTo: parseInt(pick('CFG_NIGHT_TO', '7'), 10),
     trails: String(pick('CFG_TRAILS', 'sel')),
     labels: on(pick('CFG_LABELS', false)),
     battery: on(pick('CFG_BATTERY', true)),
+    hr: on(pick('CFG_HR', true)),
+    steps: on(pick('CFG_STEPS', true)),
+    rangeLabel: on(pick('CFG_RANGE_LABEL', false)),
     receiver: String(pick('CFG_RECEIVER', '')).trim(),
     alertSquawk: on(pick('CFG_ALERT_SQUAWK', false)),
     alertLow: on(pick('CFG_ALERT_LOW', false)),
@@ -118,6 +122,9 @@ function sendConfig() {
   d[keys.NIGHT_TO] = cfg.night ? cfg.nightTo : -1;
   d[keys.LABELS] = cfg.labels ? 1 : 0;
   d[keys.BATTERY] = cfg.battery ? 1 : 0;
+  d[keys.SHOW_HR] = cfg.hr ? 1 : 0;
+  d[keys.SHOW_STEPS] = cfg.steps ? 1 : 0;
+  d[keys.RANGE_LABEL] = cfg.rangeLabel ? 1 : 0;
   d[keys.TRAIL_MODE] = { off: 0, sel: 1, all: 2 }[cfg.trails] || 0;
   send(d);
 }
@@ -326,8 +333,24 @@ Pebble.addEventListener('appmessage', function (e) {
   }
 });
 
+// The Wingbits key field shows how much of the monthly quota is left (free usage call, short timeout).
+var WB_NOTE = null;
+function wbKeyItem() {
+  var found = null;
+  clay.config.forEach(function (sec) {
+    (sec.items || []).forEach(function (it) { if (it.messageKey === 'CFG_WB_KEY') { found = it; } });
+  });
+  return found;
+}
 Pebble.addEventListener('showConfiguration', function () {
-  Pebble.openURL(clay.generateUrl());
+  var item = wbKeyItem(), key = settings().wbKey;
+  if (item && WB_NOTE === null) { WB_NOTE = item.description; }
+  function open() {
+    var line = key ? wbpace.summary(key) : '';
+    if (item) { item.description = line ? line + ' Refreshes are spread over the month so it lasts; extra ones use adsb.lol.' : WB_NOTE; }
+    Pebble.openURL(clay.generateUrl());
+  }
+  if (key) { wbpace.usage(key, open, 4000); } else { open(); }
 });
 
 Pebble.addEventListener('webviewclosed', function (e) {

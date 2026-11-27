@@ -10,9 +10,11 @@ https://apps.repebble.com/057454964bc84d3f881d3edd
 - Plane silhouettes at every range, with smaller pre-drawn icons past ~40 nm
 - Trails: highlighted plane only (default), all planes, or off
 - Optional callsign labels at 5 nm and closer
-- Live window after a wrist flick (10, 20, 30 or 60 s): refetches about every 6 s and moves planes every second
-- Background refresh every 1, 2 (default), 5, 10, 15 or 30 minutes, or off, with an optional overnight pause
-- Watch battery and Quiet Time icon in the top band
+- Live window after a wrist flick (off, 3, 5, 10 (default), 20, 30 or 60 s): refetches about every 6 s and moves planes every second
+- Background refresh every 1, 2, 5, 10, 15 or 30 minutes, 1 hour (default), or off, with an optional overnight pause. Faster refreshes and longer live windows use more battery
+- Top bar: heart rate and steps today on the left (Quiet Time icon in front when it is on), the time centered, an Android-style battery and the date on the right. Heart rate, steps and battery can each be turned off
+- Data source and plane count in the map's top-right corner (Wingbits logo, or LOL, FI, RX for adsb.lol, adsb.fi and your receiver); warnings and alerts show there in orange
+- Range ring, with an optional range label (off by default)
 - Opt-in alerts with a vibration: emergency squawks (7500, 7600, 7700), low passes overhead, military aircraft, helicopters, and a watchlist of callsigns or registrations
 - Center on GPS, a preset city or airport (Bay Area and global metros), a ZIP/postal code, or coordinates
 - Range from 1 to 100 nm; side streets and taxiways appear at 1-2 nm
@@ -30,7 +32,7 @@ https://apps.repebble.com/057454964bc84d3f881d3edd
 | Map, optional | Protomaps hosted tiles v4 | Your own key, set in settings |
 | Postal codes | Zippopotam.us | None |
 
-Sources are tried in that order. A home receiver is only reachable on your home network (the app declares the `LocalNetwork` permission for private addresses, `.local` and `.home.arpa`); away from home the public sources take over.
+Sources are tried in that order. With a Wingbits key, the face reads the quota headers Wingbits sends with every response and spreads the monthly quota evenly; refreshes that would run ahead of that pace, or hit the per-minute limit, use adsb.lol instead. The settings page shows how many Wingbits requests are left and when the counter resets. A home receiver is only reachable on your home network (the app declares the `LocalNetwork` permission for private addresses, `.local` and `.home.arpa`); away from home the public sources take over.
 
 Callsign routes in public databases go stale when airlines reuse flight numbers, so a route is only shown when the plane is roughly on the way between the two airports.
 
@@ -57,7 +59,8 @@ pebble install --emulator gabbro
 - Map data © OpenMapTiles © OpenStreetMap contributors, served by OpenFreeMap (or Protomaps with your key)
 - Aircraft data from Wingbits, adsb.lol (ODbL) and adsb.fi; routes and types from adsbdb.com
 - IBM Plex Mono, SIL Open Font License (`resources/fonts/OFL-IBMPlexMono.txt`)
-- Quiet Time icon from TimeStyle by Freakified, MIT License (`THIRD_PARTY.md`)
+- Quiet Time, heart and shoe icons from TimeStyle by Freakified, MIT License (`THIRD_PARTY.md`)
+- Wingbits mark from the Wingbits brand kit (https://wingbits.com/brand-kit), shown to credit Wingbits as the data source
 - Aircraft silhouettes are original drawings
 
 ## Support

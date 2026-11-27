@@ -71,8 +71,11 @@ module.exports = [
       { type: 'heading', defaultValue: 'Refresh' },
       {
         type: 'select', messageKey: 'CFG_LIVE', label: 'Live after a wrist flick', defaultValue: '10',
-        description: 'Flick your wrist and the map updates every few seconds for this long, with planes moving in real time.',
+        description: 'Flick your wrist and the map updates every few seconds for this long, with planes moving in real time. Longer windows use more battery.',
         options: [
+          { label: 'Off', value: '0' },
+          { label: '3 seconds', value: '3' },
+          { label: '5 seconds', value: '5' },
           { label: '10 seconds', value: '10' },
           { label: '20 seconds', value: '20' },
           { label: '30 seconds', value: '30' },
@@ -80,16 +83,17 @@ module.exports = [
         ]
       },
       {
-        type: 'select', messageKey: 'CFG_INTERVAL', label: 'In the background, refresh every', defaultValue: '2',
-        description: 'A free Wingbits Starter key allows 30,000 requests a month. 2 minutes uses about 21,600, leaving room for your wrist flicks.',
+        type: 'select', messageKey: 'CFG_INTERVAL', label: 'In the background, refresh every', defaultValue: '60',
+        description: 'How often the map updates while you are not looking. Faster refreshes drain the watch and phone battery more.',
         options: [
-          { label: 'Off (wrist flick only)', value: '0' },
+          { label: 'Off', value: '0' },
           { label: '1 minute', value: '1' },
           { label: '2 minutes', value: '2' },
           { label: '5 minutes', value: '5' },
           { label: '10 minutes', value: '10' },
           { label: '15 minutes', value: '15' },
-          { label: '30 minutes', value: '30' }
+          { label: '30 minutes', value: '30' },
+          { label: '1 hour', value: '60' }
         ]
       },
       { type: 'toggle', messageKey: 'CFG_NIGHT', label: 'Pause overnight', defaultValue: false,
@@ -135,7 +139,11 @@ module.exports = [
       },
       { type: 'toggle', messageKey: 'CFG_LABELS', label: 'Callsign labels at 5 nm and closer', defaultValue: false },
       { type: 'toggle', messageKey: 'CFG_BATTERY', label: 'Watch battery in the top bar', defaultValue: true },
+      { type: 'toggle', messageKey: 'CFG_HR', label: 'Heart rate in the top bar', defaultValue: true,
+        description: 'Needs Health turned on in the Pebble app. Hidden on watches without a heart rate sensor.' },
+      { type: 'toggle', messageKey: 'CFG_STEPS', label: 'Steps today in the top bar', defaultValue: true },
       { type: 'toggle', messageKey: 'CFG_RING', label: 'Range ring', defaultValue: true },
+      { type: 'toggle', messageKey: 'CFG_RANGE_LABEL', label: 'Range label on the map (like 10NM)', defaultValue: false },
       { type: 'toggle', messageKey: 'CFG_GROUND', label: 'Hide aircraft on the ground', defaultValue: true }
     ]
   },

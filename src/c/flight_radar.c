@@ -4,13 +4,14 @@
 
 // ---------- layout ----------
 #if defined(PBL_ROUND)
-// Round 2: 260 x 260. Time on top, readout at the bottom, map in the middle.
-#define TOP_H 62
+// Round 2: 260 x 260. Battery, time and a fitness/date row on top, readout at the bottom.
+#define TOP_H 56
 #define BOT_H 62
 #define MAP_R 68   // px from the map center to the bands: the range ring
 #else
 // Time 2: 200 x 228.
-#define TOP_H 40
+#define TOP_H 30
+#define TIME_Y (-1)   // FONT_TIME_22 box top that centers the digits in the top bar
 #define BOT_H 34
 #define MAP_R 77
 #endif
@@ -42,6 +43,9 @@
 #define P_NIGHT_TO 8
 #define P_LABELS 9
 #define P_BATTERY 10
+#define P_HR 11
+#define P_STEPS 12
+#define P_RANGE_LABEL 13
 
 typedef struct {
   int16_t x, y;      // 4 m units from map anchor, y north
@@ -56,7 +60,7 @@ typedef struct {
 
 static Window *s_window;
 static Layer *s_canvas;
-static GFont s_font_time, s_font_small, s_font_tiny;
+static GFont s_font_time, s_font_time_s, s_font_small, s_font_tiny;
 
 // Map currently shown, plus one being received.
 static uint8_t *s_map;
@@ -85,13 +89,13 @@ static uint16_t s_trails_len;
 
 static int s_road_style = 1;  // 0 solid, 1 dithered, 2 hidden
 static int s_show_ring = 1;
-static int s_interval = 2;
+static int s_interval = 60;  // background refresh, minutes (0 = off)
 static int s_radius_nm = 10;
 static int s_touch_zoom = 1;  // 0 off, 1 swipe up = in, 2 down = in, 3 right = in, 4 left = in
 static int s_live_secs = 10;  // live window after a wrist flick
 static time_t s_live_until, s_live_next;
 static int s_night_from = -1, s_night_to = -1;  // overnight pause hours, -1 = off
-static int s_labels = 0, s_battery = 1;
+static int s_labels = 0, s_battery = 1, s_show_hr = 1, s_show_steps = 1, s_range_label = 0;
 static const int RANGES[] = { 1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 60, 80, 100 };
 static AppTimer *s_zoom_timer;
 static int s_minutes;
@@ -151,6 +155,28 @@ static const uint16_t JET_S_BITS[16][11] = {
 // Quiet Time: muted speaker, 12x12. From TimeStyle by Freakified (status-dnd.png), MIT license:
 // https://github.com/freakified/TimeStylePebble (see THIRD_PARTY.md).
 static const uint16_t QUIET_BITS[12] = { 0x000, 0x0c4, 0x0e8, 0x0f0, 0x0ee, 0x0de, 0x0be, 0x17e, 0x2f0, 0x4e0, 0x0c0, 0x000 };
+// Heart (9x9) and shoe (12x8) outlines, scaled down from TimeStyle's HEALTH_HEART / HEALTH_STEPS
+// (Freakified, MIT; see THIRD_PARTY.md).
+static const uint16_t HEART_BITS[9] = { 0x044, 0x0aa, 0x111, 0x101, 0x101, 0x082, 0x044, 0x028, 0x010 };
+static const uint16_t SHOE_BITS[8] = { 0x018, 0x067, 0x061, 0x1d1, 0x301, 0xdff, 0x881, 0xfff };
+// Wingbits mark (16x10), scaled from the white logo in the Wingbits brand kit (wingbits.com/brand-kit).
+static const uint16_t WB_BITS[10] = { 0xe01f, 0x9021, 0x9841, 0x8882, 0x8d84, 0x850c, 0x8408, 0x8210, 0x8a20, 0xf9e0 };
+// Battery digits: IBM Plex Mono SemiBold 11 px, rasterized (OFL). [digit][row], bit x = column x.
+#define BATT_DIGIT_H 8
+static const uint8_t BATT_DIGIT_W[10] = { 6, 5, 5, 5, 6, 5, 6, 5, 6, 6 };
+static const uint8_t BATT_DIGITS[10][8] = {
+  { 0x1c, 0x32, 0x23, 0x23, 0x2b, 0x2b, 0x32, 0x1c },
+  { 0x0e, 0x0f, 0x0d, 0x0c, 0x0c, 0x0c, 0x0c, 0x1f },
+  { 0x0f, 0x19, 0x18, 0x18, 0x0c, 0x06, 0x03, 0x1f },
+  { 0x0f, 0x19, 0x18, 0x0e, 0x18, 0x18, 0x19, 0x0f },
+  { 0x18, 0x1c, 0x14, 0x16, 0x13, 0x3f, 0x10, 0x10 },
+  { 0x1f, 0x01, 0x01, 0x0f, 0x19, 0x10, 0x19, 0x0f },
+  { 0x18, 0x0c, 0x06, 0x1e, 0x33, 0x22, 0x32, 0x1c },
+  { 0x1f, 0x19, 0x19, 0x08, 0x0c, 0x04, 0x06, 0x06 },
+  { 0x1e, 0x32, 0x32, 0x1c, 0x32, 0x23, 0x32, 0x1e },
+  { 0x1c, 0x32, 0x23, 0x32, 0x3e, 0x30, 0x18, 0x0c },
+};
+
 
 static const GPathInfo JET_INFO = { ARRAY_LENGTH(JET_PTS), JET_PTS };
 static const GPathInfo HEAVY_INFO = { ARRAY_LENGTH(HEAVY_PTS), HEAVY_PTS };
@@ -295,6 +321,7 @@ static void draw_ring(GContext *ctx, GRect b) {
                       c.y - (int16_t)(cos_lookup(a) * r / TRIG_MAX_RATIO));
     graphics_draw_pixel(ctx, p);
   }
+  if (!s_range_label) { return; }
   static char label[8];
   snprintf(label, sizeof(label), "%dNM", s_radius_nm);
   int32_t a = TRIG_MAX_ANGLE / 8; // label at the 1:30 position
@@ -450,28 +477,15 @@ static void time_text(char *out, size_t n) {
   snprintf(out, n, "%s%s", SHOW_UNDERSCORE ? "_" : "", tstr);
 }
 
-// "MON 23" plus the watch battery when enabled.
+// "MON 23"
 static void date_text(char *out, size_t n) {
   time_t now = time(NULL);
   char date[12];
   strftime(date, sizeof(date), "%a %d", localtime(&now));
   for (char *q = date; *q; q++) { if (*q >= 'a' && *q <= 'z') { *q -= 32; } }
-  if (s_battery) { snprintf(out, n, "%s %d%%", date, battery_state_service_peek().charge_percent); }
-  else { snprintf(out, n, "%s", date); }
+  snprintf(out, n, "%s", date);
 }
 
-// Status line: phone link, then alerts, then problems, then source and plane count.
-static const char *info_text(GColor *color) {
-  static char info[32];
-  *color = GColorOrange;
-  if (!s_connected) { return "NO PHONE"; }
-  if (s_alert[0] && time(NULL) < s_alert_until) { return s_alert; }
-  if (s_status[0]) { return s_status; }
-  *color = GColorDarkGray;
-  if (!s_src[0]) { return "SYNCING"; }
-  snprintf(info, sizeof(info), "%s %d", s_loc_label[0] ? s_loc_label : s_src, s_plane_count);
-  return info;
-}
 
 static void format_alt(char *out, size_t n, int16_t alt25) {
   if (alt25 == INT16_MIN) { snprintf(out, n, "ALT ?"); return; }
@@ -555,6 +569,154 @@ static void draw_quiet(GContext *ctx, GPoint o) {
   draw_bits(ctx, QUIET_BITS, 12, o);
 }
 
+// ---------- heart rate and steps ----------
+// -1 = hidden (setting off, no sensor, or Health off), 0 = no reading yet.
+static int health_hr(void) {
+#if defined(PBL_HEALTH)
+  if (!s_show_hr) { return -1; }
+  time_t now = time(NULL);
+  if (!(health_service_metric_accessible(HealthMetricHeartRateBPM, now, now) & HealthServiceAccessibilityMaskAvailable)) { return -1; }
+  return (int)health_service_peek_current_value(HealthMetricHeartRateBPM);
+#else
+  return -1;
+#endif
+}
+
+static int health_steps(void) {
+#if defined(PBL_HEALTH)
+  if (!s_show_steps) { return -1; }
+  if (!(health_service_metric_accessible(HealthMetricStepCount, time_start_of_today(), time(NULL)) & HealthServiceAccessibilityMaskAvailable)) { return -1; }
+  return (int)health_service_sum_today(HealthMetricStepCount);
+#else
+  return -1;
+#endif
+}
+
+// "8,432"
+static void with_commas(char *out, size_t n, int v) {
+  if (v >= 1000) { snprintf(out, n, "%d,%03d", v / 1000, v % 1000); } else { snprintf(out, n, "%d", v); }
+}
+
+// Heart + bpm, and shoe + steps, each on a line of tiny text whose box starts at y. Return the width
+// (0 when hidden); draw only when draw is true.
+static int heart_item(GContext *ctx, int x, int y, bool draw) {
+  int hr = health_hr();
+  if (hr < 0) { return 0; }
+  static char hb[8];
+  if (hr > 0) { snprintf(hb, sizeof(hb), "%d", hr); } else { strcpy(hb, "--"); }
+  int tw = text_w(hb, s_font_tiny);
+  if (draw) {
+    graphics_context_set_stroke_color(ctx, GColorLightGray);
+    graphics_context_set_text_color(ctx, GColorLightGray);
+    draw_bits(ctx, HEART_BITS, 9, GPoint(x, y + 4));
+    graphics_draw_text(ctx, hb, s_font_tiny, GRect(x + 11, y, tw + 4, 14), GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+  }
+  return 11 + tw;
+}
+
+static int steps_item(GContext *ctx, int x, int y, bool draw) {
+  int st = health_steps();
+  if (st < 0) { return 0; }
+  static char sb[12];
+  with_commas(sb, sizeof(sb), st);
+  int tw = text_w(sb, s_font_tiny);
+  if (draw) {
+    graphics_context_set_stroke_color(ctx, GColorLightGray);
+    graphics_context_set_text_color(ctx, GColorLightGray);
+    draw_bits(ctx, SHOE_BITS, 8, GPoint(x, y + 5));
+    graphics_draw_text(ctx, sb, s_font_tiny, GRect(x + 14, y, tw + 4, 14), GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+  }
+  return 14 + tw;
+}
+
+// Both on one line (Round 2).
+static int health_line(GContext *ctx, int x, int y, bool draw) {
+  int hw = heart_item(ctx, x, y, draw);
+  int sw = steps_item(ctx, x + (hw ? hw + 6 : 0), y, draw);
+  return hw + (hw && sw ? 6 : 0) + sw;
+}
+
+// Android-style battery: the charged part is white, the number sits inside and switches between
+// black (over the charged part) and white (over the empty part) pixel by pixel. 27x12 at x, y.
+static void draw_battery(GContext *ctx, int x, int y) {
+  int pct = battery_state_service_peek().charge_percent;
+  const int W = 25, H = 12;
+  int fill = (23 * pct + 50) / 100;  // charged columns inside
+  // Empty part: black inside a light gray outline, so it reads clearly against the white charge
+  // on the real screen (dark gray looked too close to white there).
+  graphics_context_set_fill_color(ctx, GColorLightGray);
+  graphics_fill_rect(ctx, GRect(x, y, W, H), 3, GCornersAll);
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, GRect(x + 1, y + 1, W - 2, H - 2), 2, GCornersAll);
+  graphics_context_set_fill_color(ctx, GColorWhite);
+  if (pct >= 100) { graphics_fill_rect(ctx, GRect(x, y, W, H), 3, GCornersAll); }
+  else if (fill > 0) { graphics_fill_rect(ctx, GRect(x, y, 1 + fill, H), fill >= 3 ? 3 : 0, GCornersLeft); }
+  graphics_context_set_fill_color(ctx, pct >= 100 ? GColorWhite : GColorLightGray);
+  graphics_fill_rect(ctx, GRect(x + W, y + 3, 2, H - 6), 0, GCornerNone);
+  char num[4];
+  snprintf(num, sizeof(num), "%d", pct > 100 ? 100 : pct);
+  int tw = -1;
+  for (char *c = num; *c; c++) { tw += BATT_DIGIT_W[*c - '0'] + 1; }
+  int ox = x + (W - tw) / 2, oy = y + (H - BATT_DIGIT_H) / 2, edge = pct >= 100 ? x + W : x + fill;
+  for (char *c = num; *c; c++) {
+    int d = *c - '0';
+    for (int r = 0; r < BATT_DIGIT_H; r++) {
+      for (int bx = 0; bx < BATT_DIGIT_W[d]; bx++) {
+        if (!(BATT_DIGITS[d][r] >> bx & 1)) { continue; }
+        int px = ox + bx;
+        graphics_context_set_stroke_color(ctx, px <= edge ? GColorBlack : GColorWhite);
+        graphics_draw_pixel(ctx, GPoint(px, oy + r));
+      }
+    }
+    ox += BATT_DIGIT_W[d] + 1;
+  }
+}
+
+// Something to report (no phone link, an alert, a fetch problem), or NULL when all is well.
+static const char *warn_text(void) {
+  if (!s_connected) { return "NO PHONE"; }
+  if (s_alert[0] && time(NULL) < s_alert_until) { return s_alert; }
+  if (s_status[0]) { return s_status; }
+  if (!s_src[0]) { return "SYNCING"; }
+  return NULL;
+}
+
+// Short tag for the data source; NULL for Wingbits, which is shown as its logo.
+static const char *src_tag(void) {
+  if (strcmp(s_src, "WINGBITS") == 0) { return NULL; }
+  if (strcmp(s_src, "ADSB.LOL") == 0) { return "LOL"; }
+  if (strcmp(s_src, "ADSB.FI") == 0) { return "FI"; }
+  if (strcmp(s_src, "RECEIVER") == 0) { return "RX"; }
+  return s_src;
+}
+
+// Source + plane count on one line ("<Wingbits logo> 23", "LOL 9"), or the warning in orange.
+// Tiny text box starts at y. Returns the width; draws only when draw is true.
+static int status_item(GContext *ctx, int x, int y, bool draw) {
+  const char *warn = warn_text();
+  if (warn) {
+    int w = text_w(warn, s_font_tiny);
+    if (draw) {
+      graphics_context_set_text_color(ctx, strcmp(warn, "SYNCING") == 0 ? GColorLightGray : GColorOrange);
+      graphics_draw_text(ctx, warn, s_font_tiny, GRect(x, y, w + 4, 14), GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+    }
+    return w;
+  }
+  static char buf[24];
+  const char *tag = src_tag();
+  if (tag) { snprintf(buf, sizeof(buf), "%s %d", tag, s_plane_count); } else { snprintf(buf, sizeof(buf), "%d", s_plane_count); }
+  int tw = text_w(buf, s_font_tiny), lw = tag ? 0 : 16 + 3;
+  if (draw) {
+    if (!tag) {
+      graphics_context_set_stroke_color(ctx, GColorWhite);
+      draw_bits(ctx, WB_BITS, 10, GPoint(x, y + 2));
+    }
+    graphics_context_set_text_color(ctx, GColorLightGray);
+    graphics_draw_text(ctx, buf, s_font_tiny, GRect(x + lw, y, tw + 4, 14), GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+  }
+  return lw + tw;
+}
+
 static void band_backgrounds(GContext *ctx, GRect b) {
   int y0 = b.size.h - BOT_H;
   graphics_context_set_fill_color(ctx, GColorBlack);
@@ -571,18 +733,25 @@ static void draw_bands(GContext *ctx, GRect b) {
   band_backgrounds(ctx, b);
   int w = b.size.w, y0 = b.size.h - BOT_H;
   static char tline[10], dline[20];
+  // Battery alone at the top, the time under it.
+  if (s_battery) { draw_battery(ctx, (w - 27) / 2, 3); }
   time_text(tline, sizeof(tline));
   graphics_context_set_text_color(ctx, GColorWhite);
-  graphics_draw_text(ctx, tline, s_font_time, GRect(0, 2, w, 36), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
-  if (quiet_time_is_active()) { draw_quiet(ctx, GPoint((w - text_w(tline, s_font_time)) / 2 - 16, 14)); }
+  graphics_draw_text(ctx, tline, s_font_time, GRect(0, 8, w, 36), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+  // Quiet Time icon at the upper left of the time.
+  if (quiet_time_is_active()) { draw_quiet(ctx, GPoint((w - text_w(tline, s_font_time)) / 2 - 14, 14)); }
+  // Last row: heart rate and steps, then the date, with equal black space left, between and right
+  // across the width of the circle at this height (x 34..226).
   date_text(dline, sizeof(dline));
+  int hw = health_line(ctx, 0, 0, false), dw = text_w(dline, s_font_tiny);
+  int gap = (192 - hw - dw) / (hw ? 3 : 2);
+  if (hw) { health_line(ctx, 34 + gap, 38, true); }
   graphics_context_set_text_color(ctx, GColorLightGray);
-  graphics_draw_text(ctx, dline, s_font_tiny, GRect(0, 34, w, 14), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
-  // Source/status sits up top on the round face: the bottom of the circle is too narrow for it.
-  GColor ic;
-  const char *info = info_text(&ic);
-  graphics_context_set_text_color(ctx, ic);
-  graphics_draw_text(ctx, info, s_font_tiny, GRect(30, 46, w - 60, 14), GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+  graphics_draw_text(ctx, dline, s_font_tiny, GRect(hw ? 34 + 2 * gap + hw : (w - dw) / 2, 38, dw + 4, 14),
+                     GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+  // Source and plane count (or a warning): top-right of the map, inside the circle, as on Time 2.
+  int stw = status_item(ctx, 0, 0, false);
+  status_item(ctx, 228 - stw, TOP_H - 2, true);
 
   Readout r;
   if (!readout(&r)) {
@@ -614,28 +783,29 @@ static void draw_bands(GContext *ctx, GRect b) {
   graphics_draw_text(ctx, last, s_font_small, GRect(40, y0 + 37, w - 80, 18), GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 }
 #else
-// Time 2: time left, date and status right; two readout lines at the bottom.
+// Time 2: heart rate and steps left, time centered, battery and date right; source and plane
+// count in the map's top-right corner; two readout lines at the bottom.
 static void draw_bands(GContext *ctx, GRect b) {
   band_backgrounds(ctx, b);
   int w = b.size.w, y0 = b.size.h - BOT_H;
   static char tline[10], dline[20];
+  // Left: Quiet Time icon (only while it is on) before the heart, steps under it.
+  int hx = 2;
+  if (quiet_time_is_active()) { draw_quiet(ctx, GPoint(0, 0)); hx = 15; }
+  heart_item(ctx, hx, 0, true);
+  steps_item(ctx, 1, 14, true);
+  // Center: the time, centered on the screen.
   time_text(tline, sizeof(tline));
-  bool quiet = quiet_time_is_active();
-  int tx = quiet ? 17 : 4;
-  if (quiet) { draw_quiet(ctx, GPoint(3, 12)); }
   graphics_context_set_text_color(ctx, GColorWhite);
-  graphics_draw_text(ctx, tline, s_font_time, GRect(tx, -1, 120, 36), GTextOverflowModeFill, GTextAlignmentLeft, NULL);
-  if (SHOW_UNDERSCORE) {
-    graphics_context_set_text_color(ctx, GColorOrange);
-    graphics_draw_text(ctx, "_", s_font_time, GRect(tx, -1, 120, 36), GTextOverflowModeFill, GTextAlignmentLeft, NULL);
-  }
+  graphics_draw_text(ctx, tline, s_font_time_s, GRect(0, TIME_Y, w, 28), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+  // Right: battery in the corner, date under it.
+  if (s_battery) { draw_battery(ctx, w - 1 - 27, 2); }
   date_text(dline, sizeof(dline));
   graphics_context_set_text_color(ctx, GColorLightGray);
-  graphics_draw_text(ctx, dline, s_font_tiny, GRect(w - 94, 3, 90, 14), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
-  GColor ic;
-  const char *info = info_text(&ic);
-  graphics_context_set_text_color(ctx, ic);
-  graphics_draw_text(ctx, info, s_font_tiny, GRect(w - 94, 19, 90, 14), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
+  graphics_draw_text(ctx, dline, s_font_tiny, GRect(w - 83, 14, 80, 14), GTextOverflowModeFill, GTextAlignmentRight, NULL);
+  // Map's top-right corner: source and plane count, or a warning.
+  int sw = status_item(ctx, 0, 0, false);
+  status_item(ctx, w - 3 - sw, TOP_H - 2, true);
 
   Readout r;
   if (!readout(&r)) {
@@ -710,12 +880,15 @@ static void inbox(DictionaryIterator *it, void *ctx) {
   Tuple *t;
   if ((t = dict_find(it, MESSAGE_KEY_ROAD_STYLE))) { s_road_style = t->value->int32; persist_write_int(P_ROADS, s_road_style); }
   if ((t = dict_find(it, MESSAGE_KEY_SHOW_RING))) { s_show_ring = t->value->int32; persist_write_int(P_RING, s_show_ring); }
-  if ((t = dict_find(it, MESSAGE_KEY_INTERVAL_MIN))) { s_interval = t->value->int32 >= 0 ? t->value->int32 : 2; persist_write_int(P_INTERVAL, s_interval); }
-  if ((t = dict_find(it, MESSAGE_KEY_LIVE_SECS)) && t->value->int32 > 0) { s_live_secs = t->value->int32; persist_write_int(P_LIVE, s_live_secs); }
+  if ((t = dict_find(it, MESSAGE_KEY_INTERVAL_MIN))) { s_interval = t->value->int32 >= 0 ? t->value->int32 : 60; persist_write_int(P_INTERVAL, s_interval); }
+  if ((t = dict_find(it, MESSAGE_KEY_LIVE_SECS)) && t->value->int32 >= 0) { s_live_secs = t->value->int32; persist_write_int(P_LIVE, s_live_secs); }
   if ((t = dict_find(it, MESSAGE_KEY_NIGHT_FROM))) { s_night_from = t->value->int32; persist_write_int(P_NIGHT_FROM, s_night_from); }
   if ((t = dict_find(it, MESSAGE_KEY_NIGHT_TO))) { s_night_to = t->value->int32; persist_write_int(P_NIGHT_TO, s_night_to); }
   if ((t = dict_find(it, MESSAGE_KEY_LABELS))) { s_labels = t->value->int32; persist_write_int(P_LABELS, s_labels); }
   if ((t = dict_find(it, MESSAGE_KEY_BATTERY))) { s_battery = t->value->int32; persist_write_int(P_BATTERY, s_battery); }
+  if ((t = dict_find(it, MESSAGE_KEY_SHOW_HR))) { s_show_hr = t->value->int32; persist_write_int(P_HR, s_show_hr); }
+  if ((t = dict_find(it, MESSAGE_KEY_SHOW_STEPS))) { s_show_steps = t->value->int32; persist_write_int(P_STEPS, s_show_steps); }
+  if ((t = dict_find(it, MESSAGE_KEY_RANGE_LABEL))) { s_range_label = t->value->int32; persist_write_int(P_RANGE_LABEL, s_range_label); }
   if ((t = dict_find(it, MESSAGE_KEY_RADIUS_NM)) && t->value->int32 > 0 && !s_zoom_timer) {
     s_radius_nm = t->value->int32;
     s_mpp10 = s_radius_nm * 18520 / MAP_R;
@@ -959,7 +1132,7 @@ static void light_hold(void) {
 
 static void tap(AccelAxisType axis, int32_t dir) {
   light_hold();
-  live_start();
+  if (s_live_secs > 0) { live_start(); }  // 0 = live window off
 }
 
 static void battery(BatteryChargeState st) { if (s_battery) { layer_mark_dirty(s_canvas); } }
@@ -989,12 +1162,16 @@ static void init(void) {
   if (persist_exists(P_NIGHT_TO)) { s_night_to = persist_read_int(P_NIGHT_TO); }
   if (persist_exists(P_LABELS)) { s_labels = persist_read_int(P_LABELS); }
   if (persist_exists(P_BATTERY)) { s_battery = persist_read_int(P_BATTERY); }
-  if (s_interval < 0) { s_interval = 2; }
-  if (s_live_secs <= 0) { s_live_secs = 10; }
+  if (persist_exists(P_HR)) { s_show_hr = persist_read_int(P_HR); }
+  if (persist_exists(P_STEPS)) { s_show_steps = persist_read_int(P_STEPS); }
+  if (persist_exists(P_RANGE_LABEL)) { s_range_label = persist_read_int(P_RANGE_LABEL); }
+  if (s_interval < 0) { s_interval = 60; }
+  if (s_live_secs < 0) { s_live_secs = 10; }
   if (s_radius_nm <= 0) { s_radius_nm = 10; }
   s_mpp10 = s_radius_nm * 18520 / MAP_R;
 
   s_font_time = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TIME_30));
+  s_font_time_s = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TIME_22));
   s_font_small = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_SMALL_14));
   s_font_tiny = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TINY_11));
   s_jet = gpath_create(&JET_INFO);
@@ -1030,6 +1207,7 @@ static void deinit(void) {
   gpath_destroy(s_jet); gpath_destroy(s_heavy); gpath_destroy(s_light); gpath_destroy(s_other);
 
   fonts_unload_custom_font(s_font_time);
+  fonts_unload_custom_font(s_font_time_s);
   fonts_unload_custom_font(s_font_small);
   fonts_unload_custom_font(s_font_tiny);
   free(s_map);
