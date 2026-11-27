@@ -1,8 +1,22 @@
 # Flight Radar watchface for Pebble smartwatch
 
+![Flight Radar](docs/images/banner.png)
+
 A Pebble watchface that shows live ADS-B traffic around you on a dark map styled after the Wingbits live map. Runs on Pebble Time 2 and Pebble Round 2.
 
 https://apps.repebble.com/057454964bc84d3f881d3edd
+
+| Pebble Time 2 | | |
+|---|---|---|
+| ![Tokyo](docs/images/time2_1_tokyo.png) | ![San Francisco](docs/images/time2_2_san_francisco.png) | ![Istanbul](docs/images/time2_3_istanbul.png) |
+| Tokyo, 20 nm | San Francisco, 20 nm | Istanbul, 20 nm |
+
+| Pebble Round 2 | | |
+|---|---|---|
+| ![Tokyo](docs/images/round2_1_tokyo.png) | ![San Francisco](docs/images/round2_2_san_francisco.png) | ![Istanbul](docs/images/round2_3_istanbul.png) |
+| Tokyo, 20 nm | San Francisco, 20 nm | Istanbul, 20 nm |
+
+Emulator screenshots; heart rate and steps show sample values there because the emulator has no health data.
 
 - Time band on top, highlighted aircraft at the bottom: callsign, route (like SJC-LAS), distance, bearing arrow, altitude, speed and ICAO type (like B738)
 - Map centered on your phone's GPS: water, highways, major roads and runways from OpenStreetMap vector tiles (OpenFreeMap by default)
